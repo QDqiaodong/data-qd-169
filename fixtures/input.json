@@ -1,0 +1,39 @@
+{
+  "points": [
+    {
+      "id": "A",
+      "elevation": "100"
+    },
+    {
+      "id": "B",
+      "elevation": null
+    },
+    {
+      "id": "C",
+      "elevation": null
+    }
+  ],
+  "observations": [
+    {
+      "id": "AB",
+      "from": "A",
+      "to": "B",
+      "delta": "1",
+      "weight": "1"
+    },
+    {
+      "id": "BC",
+      "from": "B",
+      "to": "C",
+      "delta": "1",
+      "weight": "1"
+    },
+    {
+      "id": "AC",
+      "from": "A",
+      "to": "C",
+      "delta": "3",
+      "weight": "1"
+    }
+  ]
+}
