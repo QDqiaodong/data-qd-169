@@ -346,3 +346,150 @@ cheap BD branch to a non-target D must not pull the plan. The unique minimum
 is AB + BC at total 5: BC simultaneously anchors both B and C, so separately
 buying a route for each target is never optimal. The report lists the two
 pending segments in id order and links both targets to A.
+
+# Single-observation resilience review v1
+
+`level-resilience` is a separate, offline review command for a delivery
+owner. The official result is the ordinary `level-network` adjustment over
+the complete observation set. The review then asks, for every input
+observation in turn, whether the requested delivery targets can still be
+heighted when only that observation is temporarily unavailable (equipment
+failure, damaged record, field re-measurement). `level-network` input,
+output, exact adjustment and failure behaviour are unchanged.
+
+## Command
+
+```text
+level-resilience --source REVIEW.json --output REPORT.json
+```
+
+Both paths are required and must differ. Input is at most 8 MB, rejects
+duplicate JSON keys and non-finite numbers, and is fully validated before
+publication. A successful run publishes the report atomically exactly like
+the other commands; any failure exits 2, keeps an existing report untouched
+and rejects a symlink output. Repeated successful runs on the same input
+produce byte-identical reports.
+
+## Input
+
+```json
+{
+  "points": [{"id": "A", "elevation": "0"}, {"id": "B", "elevation": null},
+             {"id": "C", "elevation": null}],
+  "observations": [
+    {"id": "AB1", "from": "A", "to": "B", "delta": "1", "weight": "1"},
+    {"id": "AB2", "from": "A", "to": "B", "delta": "3", "weight": "1"},
+    {"id": "AC", "from": "A", "to": "C", "delta": "1", "weight": "1"}
+  ],
+  "target_points": ["B", "C"],
+  "tolerances": {"B": "1", "C": "0.5"}
+}
+```
+
+- `points` follows the existing contract: at most 60 unique ids, a bounded
+  decimal elevation string for a fixed benchmark and `null` for an unknown.
+  At least one benchmark is required.
+- `observations` follows the existing contract: at most 2,000 unique ids,
+  known distinct endpoints, bounded decimal deltas and positive weights. It
+  must be non-empty and must satisfy the full adjustment contract, otherwise
+  the command fails; an invalid official result never yields a review.
+- `target_points` lists 1 to 10 unique **unknown** point ids. A fixed
+  benchmark cannot be a target.
+- `tolerances` is an object whose keys are exactly the target ids. Each value
+  is a non-negative bounded decimal string: the acceptable absolute
+  displacement of that target under any single observation failure.
+
+## Review semantics
+
+The official elevations are the `level-network` adjustment of the complete
+observation set. There is one scenario per input observation, ordered by
+observation id. A scenario removes exactly that observation and re-solves the
+remaining network with the same exact `Fraction` adjustment semantics. The
+scenarios are independent: a removal never accumulates, and benchmarks,
+weights and every other input stay untouched.
+
+If the remaining network violates the existing adjustment contract -- no
+observations left, or a target's connected component loses its benchmark --
+the scenario is `unavailable` for **every** target. No elevation or
+displacement is invented for it, not even for targets whose own component is
+still anchored.
+
+Otherwise every target reports its exact scenario elevation, the absolute
+displacement against the official elevation, and whether that displacement is
+within its tolerance. Equality with the tolerance is acceptable.
+
+Rank-one normal-equation updates compute the leave-one-out solution exactly;
+they are algebraically identical to re-running the ordinary adjustment on
+the reduced observation set, and every result is compared as a `Fraction`.
+
+## Report
+
+```json
+{
+  "schema": "level-resilience-report-v1",
+  "note": "Each scenario treats exactly one observation as unavailable and re-solves the remaining network independently; removals never accumulate and no benchmark, weight or other input is changed.",
+  "official_elevations": {"B": "2", "C": "4/3"},
+  "targets": [
+    {"point": "B", "official_elevation": "2", "tolerance": "1",
+     "conclusion": "resilient"},
+    {"point": "C", "official_elevation": "4/3", "tolerance": "1/2",
+     "conclusion": "movement_at_risk"}
+  ],
+  "scenarios": [
+    {"observation": "AB1", "status": "available", "reason": null,
+     "targets": [
+       {"point": "B", "status": "available", "elevation": "3",
+        "displacement": "1", "within_tolerance": true},
+       {"point": "C", "status": "available", "elevation": "4/3",
+        "displacement": "0", "within_tolerance": true}
+     ]},
+    {"observation": "AC", "status": "unavailable",
+     "reason": "unidentifiable_datum",
+     "targets": [
+       {"point": "B", "status": "unavailable", "elevation": null,
+        "displacement": null, "within_tolerance": null},
+       {"point": "C", "status": "unavailable", "elevation": null,
+        "displacement": null, "within_tolerance": null}
+     ]}
+  ]
+}
+```
+
+`note` states explicitly that each scenario removes exactly one observation.
+Observations and targets are sorted by id, so the report never depends on
+input array order. Every number is an exact fraction/decimal string; no
+`float` appears anywhere. A scenario is `available` or `unavailable`;
+`reason` is `no_observations` or `unidentifiable_datum` for an unavailable
+scenario and `null` otherwise.
+
+Each target row carries an overall `conclusion`, in this priority order:
+
+- `delivery_at_risk` if at least one scenario is unavailable;
+- otherwise `movement_at_risk` if at least one scenario displacement exceeds
+  that target's tolerance;
+- otherwise `resilient`, i.e. every scenario is available and every
+  displacement is within tolerance.
+
+Unavailability therefore takes precedence over an over-tolerance movement.
+
+## Acceptance example
+
+`fixtures/resilience.json` uses A fixed at 0; B is observed twice (AB1=1,
+AB2=3) and C twice (AC1=1, AC2=3). The official heights are B=2 and C=2.
+Either single observation may fail and still leave a solvable network:
+removing AB1 or AB2 moves B between 3 and 1 (displacement 1) while C stays at
+2; removing AC1 or AC2 moves C between 3 and 1 (displacement 1) while B stays
+at 2. With tolerance 1 on both targets, displacement exactly equal to the
+tolerance is acceptable, so both targets are `resilient`.
+`fixtures/resilience-bridge.json` fixes only A and observes the triangle-like
+chain A-B-C plus the branches B-D and D-E, with two parallel D-E
+observations and a closing C-E check. Every route from B, C, D and E to the
+benchmark crosses AB, so removing AB leaves that whole component without a
+benchmark and the scenario marks **both** targets `unavailable`. C's tolerance
+is 1/10 while several available scenarios move it by 4/7 or more, so C would
+be `movement_at_risk`; unavailability takes precedence and its conclusion is
+`delivery_at_risk`. E's tolerance is 2 and every available scenario keeps it
+within tolerance, so E would be `resilient` without the bridge failure; it
+too becomes `delivery_at_risk`, showing that one unavailable scenario decides
+the overall conclusion.
+

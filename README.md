@@ -59,3 +59,14 @@ M=fixtures/monitor
 ```
 
 预期：A 为固定基准，B、C 为不同浮动分量中的目标；候选 AB=4、BC=1、AC=7，另有不改变计划的 BD=0.5。最低成本计划为 AB+BC，`total_cost` 为 `5`，B 与 C 均经 BC 共享接入锚定侧，各目标报告所连基准 A；`segments` 均标记 `pending_collection`（待采集）。若某目标无法连到任何基准，命令仍成功退出并写出 `feasible: false` 与排序后的 `unreachable_targets`；输入无效时退出 2 且不覆盖旧报告。
+
+## 单次观测失效韧性审查
+
+`level-resilience` 面向交付负责人：正式成果仍是完整观测集上的 `level-network` 平差，随后逐条把每个观测视为暂不可用、仅移除该观测并独立重解，给出目标点是否仍可求高程、相对正式成果的精确位移及是否超过该点容差。移除不累计，基准、权重和其他输入不变；`level-network` 的输入、输出与失败行为完全不变。字段、容差与结论优先级见[数据契约的韧性审查章节](docs/contract.md#single-observation-resilience-review-v1)。
+
+```sh
+.venv/bin/level-resilience --source fixtures/resilience.json --output run/resilience.json
+.venv/bin/level-resilience --source fixtures/resilience-bridge.json --output run/resilience-bridge.json
+```
+
+预期：正式高程 B=2、C=2；任一单条观测失效后网络仍可解，目标位移恰为 1 而容差同为 1，等号可接受，两目标均为 `resilient`。桥接样例中全部目标点只经 AB 连回基准 A，移除 AB 后该分量失去基准，此情景对所有目标 `unavailable`，相关结论为 `delivery_at_risk`（不可用优先于超差）。逐情景仅移除一条观测，观测与目标按 ID 稳定排序；失败退出 2 且保留旧报告。
