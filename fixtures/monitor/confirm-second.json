@@ -1,0 +1,9 @@
+{
+  "request_id": "synthetic-confirm-epoch-3",
+  "changes": [],
+  "acks": [
+    {"point": "B", "opening_epoch": 3,
+     "reference_height": "0", "opening_height": "7",
+     "operator": "demo-operator"}
+  ]
+}

@@ -9,5 +9,6 @@ requires-python = ">=3.11"
 dependencies = []
 [project.scripts]
 level-network = "level_network.cli:main"
+level-monitor = "level_network.monitor_cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]

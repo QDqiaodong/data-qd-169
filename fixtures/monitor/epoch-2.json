@@ -1,0 +1,10 @@
+{
+  "request_id": "synthetic-epoch-2",
+  "changes": [
+    {"epoch": 2, "revision": 1,
+     "observations": [
+       {"id": "AB2", "from": "A", "to": "B", "delta": "1", "weight": "1"}
+     ]}
+  ],
+  "acks": []
+}

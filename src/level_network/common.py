@@ -28,11 +28,11 @@ def array(value, limit=10000):
     return value
 
 
-def read_json(path):
+def read_json(path, limit=8_000_000, label='8MB'):
     with Path(path).open('rb') as stream:
-        raw = stream.read(8_000_001)
-    if len(raw) > 8_000_000:
-        raise ValueError('input exceeds 8MB')
+        raw = stream.read(limit + 1)
+    if len(raw) > limit:
+        raise ValueError('input exceeds ' + label)
     def unique(pairs):
         result = {}
         for key, value in pairs:

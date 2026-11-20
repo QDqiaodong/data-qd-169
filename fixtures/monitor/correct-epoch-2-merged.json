@@ -1,0 +1,10 @@
+{
+  "request_id": "synthetic-correct-epoch-2-merged",
+  "changes": [
+    {"epoch": 2, "revision": 2,
+     "observations": [
+       {"id": "AB2", "from": "A", "to": "B", "delta": "6", "weight": "1"}
+     ]}
+  ],
+  "acks": []
+}

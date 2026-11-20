@@ -1,0 +1,13 @@
+{
+  "points": [
+    {"id": "A", "elevation": "0"},
+    {"id": "B", "elevation": null}
+  ],
+  "reference_epoch": 0,
+  "thresholds": [
+    {"point": "B", "on": "5", "off": "2"}
+  ],
+  "reference_observations": [
+    {"id": "AB0", "from": "A", "to": "B", "delta": "0", "weight": "1"}
+  ]
+}
