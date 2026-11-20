@@ -1,0 +1,89 @@
+{
+  "points": [
+    {
+      "id": "A",
+      "elevation": "0"
+    },
+    {
+      "id": "B",
+      "elevation": "0"
+    },
+    {
+      "id": "C",
+      "elevation": "0"
+    }
+  ],
+  "records": [
+    {
+      "id": "ab1",
+      "from": "A",
+      "to": "B",
+      "start": 10,
+      "end": 11,
+      "backsight": "3",
+      "foresight": "0"
+    },
+    {
+      "id": "ba1",
+      "from": "B",
+      "to": "A",
+      "start": 12,
+      "end": 13,
+      "backsight": "0",
+      "foresight": "3"
+    },
+    {
+      "id": "bc1",
+      "from": "B",
+      "to": "C",
+      "start": 20,
+      "end": 21,
+      "backsight": "2",
+      "foresight": "0"
+    },
+    {
+      "id": "cb1",
+      "from": "C",
+      "to": "B",
+      "start": 22,
+      "end": 23,
+      "backsight": "0",
+      "foresight": "2"
+    }
+  ],
+  "runs": [
+    {
+      "id": "R1",
+      "stops": [
+        "A",
+        "B",
+        "A"
+      ],
+      "start": 10,
+      "end": 13,
+      "tolerance": "0"
+    },
+    {
+      "id": "R2",
+      "stops": [
+        "B",
+        "C",
+        "B"
+      ],
+      "start": 20,
+      "end": 23,
+      "tolerance": "0"
+    },
+    {
+      "id": "R3",
+      "stops": [
+        "A",
+        "C",
+        "A"
+      ],
+      "start": 30,
+      "end": 40,
+      "tolerance": "0"
+    }
+  ]
+}

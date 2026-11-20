@@ -1,0 +1,16 @@
+{
+  "points": [
+    {"id": "A", "elevation": "0"},
+    {"id": "B", "elevation": "0"}
+  ],
+  "records": [
+    {"id": "a", "from": "A", "to": "B", "start": 10, "end": 11, "backsight": "4", "foresight": "0"},
+    {"id": "b", "from": "A", "to": "B", "start": 12, "end": 13, "backsight": "5", "foresight": "0"},
+    {"id": "c", "from": "B", "to": "A", "start": 15, "end": 16, "backsight": "0", "foresight": "4"},
+    {"id": "d", "from": "B", "to": "A", "start": 17, "end": 18, "backsight": "0", "foresight": "5"}
+  ],
+  "runs": [
+    {"id": "R1", "stops": ["A", "B", "A"], "start": 10, "end": 18, "tolerance": "0"},
+    {"id": "R2", "stops": ["A", "B", "A"], "start": 12, "end": 18, "tolerance": "0"}
+  ]
+}

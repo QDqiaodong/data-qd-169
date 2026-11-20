@@ -14,5 +14,6 @@ level-plan = "level_network.plan_cli:main"
 level-resilience = "level_network.resilience_cli:main"
 level-staff = "level_network.staff_cli:main"
 level-accept = "level_network.accept_cli:main"
+level-fieldbook = "level_network.fieldbook_cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]

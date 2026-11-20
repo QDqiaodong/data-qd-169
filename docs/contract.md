@@ -775,3 +775,144 @@ clause is `conditional` while its relative clauses pass or fail outright,
 `fixtures/accept/benchmark-conflict.json` shows that a conflict between
 fixed benchmarks is never absorbed, and `fixtures/accept/zero-reserve.json`
 accepts at ratio 0 with a null proof.
+
+# Level field-book filing v1
+
+`level-fieldbook` is a separate, offline archiving command.  An exported
+electronic field-book has every survey run mixed together: rows still carry
+their unique serial number, their measured direction, their observation
+interval and their exact readings, but the run number was lost.  The archive
+knows each run's planned walking order (`stops`) and working window, and the
+command decides whether the rows can be returned to the runs, publishing one
+common witness and, for each run whose rows are not uniquely determined, one
+counterexample.  `level-network`, its input/output contract and every other
+command are unchanged.
+
+## Command
+
+```text
+level-fieldbook --source INPUT.json --output REPORT.json
+```
+
+Both paths are required and must differ.  Input is at most 8 MB, rejects
+duplicate JSON keys and non-finite numbers, and is fully validated before
+publication.  A successful run publishes the report atomically exactly like
+the other commands; an input error or any other failure exits 2, keeps an
+existing report untouched and rejects a symlink output.  A legal but
+unfileable batch is a business result: it still writes a report and exits 0.
+Reordering `points`, `records` or `runs` never changes the report.
+
+## Input
+
+```json
+{
+  "points": [{"id": "A", "elevation": "0"},
+             {"id": "B", "elevation": "0"}],
+  "records": [
+    {"id": "a", "from": "A", "to": "B", "start": 10, "end": 11,
+     "backsight": "4", "foresight": "0"},
+    {"id": "c", "from": "B", "to": "A", "start": 15, "end": 16,
+     "backsight": "0", "foresight": "4"}
+  ],
+  "runs": [
+    {"id": "R1", "stops": ["A", "B", "A"], "start": 10, "end": 18,
+     "tolerance": "0"}
+  ]
+}
+```
+
+- `points` follows the existing contract: at most 60 unique ids, a bounded
+  decimal elevation string for a known benchmark and `null` for an unknown.
+- `records` is at most 2,000 rows and may be empty.  Each row is
+  `{id, from, to, start, end, backsight, foresight}`: serial ids are unique
+  across the whole batch, `from` and `to` are distinct known point ids,
+  `start` and `end` are integer seconds in `[0, 10^9]` with `start < end`,
+  and `backsight`/`foresight` are non-negative bounded decimals.  The row's
+  oriented height difference is `backsight - foresight`, exactly.
+- `runs` holds 1 to 8 unique route ids `{id, stops, start, end, tolerance}`.
+  `stops` lists 2 to 7 points in walking order, adjacent stops differ, revisits
+  are allowed, and the first and last stops must have known elevations (they
+  may be the same benchmark).  The window uses the same integer seconds with
+  `start < end`; `tolerance` is a non-negative bounded decimal.
+
+Every adjacent stop pair is one station.  A row is a candidate for a station
+only when its direction is exactly that station's, and both its `start` and
+its `end` lie inside the run window (bounds included).  A station with more
+than four candidates is a field-verification problem and rejects the whole
+input with exit 2; a station with no candidates is a normal result.
+
+## Filing semantics
+
+A complete filing assigns one candidate row to every station of every run.
+Each serial number is used at most once across the whole batch.  Inside one
+run the stations follow the walking order: the previous row's `end` must not
+be later than the next row's `start`.  The run's **closure error** is
+
+```text
+sum(oriented row difference over the run)
+    - (known elevation of the last stop - known elevation of the first stop)
+```
+
+and must satisfy `abs(closure) <= tolerance`; equality is acceptable.  Rows
+may be left unused, a row is never reversed, no reading is invented, and the
+closure is never repaired by an adjustment.
+
+A run is **locally fileable** when such a choice exists for that run alone.
+The batch is fileable only when one choice per run exists and no serial is
+shared.  Time constrains station order only inside one run: different runs
+may have overlapping windows and overlapping times.
+
+## Report
+
+```json
+{
+  "schema": "level-fieldbook-v1",
+  "status": "feasible",
+  "assignment": {"R1": ["a", "c"]},
+  "runs": [
+    {"id": "R1", "status": "confirmed", "record_ids": ["a", "c"],
+     "net_delta": "0", "closure_error": "0", "alternative": null},
+    {"id": "R2", "status": "ambiguous", "record_ids": null,
+     "net_delta": null, "closure_error": null,
+     "alternative": {"R1": ["b", "d"], "R2": ["a", "c"]}}
+  ],
+  "locally_impossible_runs": []
+}
+```
+
+When at least one complete filing exists, `status` is `feasible` and
+`assignment` maps every run id to its station-ordered serial ids; it is one
+public witness, and any reproducible such witness is acceptable.  `runs` is
+sorted by run id.  A run is `confirmed` only when its serial sequence is
+identical in **every** complete filing; it then carries `record_ids`, the
+exact sum of its oriented row differences `net_delta` and its signed
+`closure_error`.  Otherwise it is `ambiguous`, the three value fields are
+`null`, and `alternative` holds another complete filing that is equally legal
+but assigns that run different rows -- proof that its official rows would
+change.  A `confirmed` row has `alternative: null`.  No two runs may copy the
+same measured row, and two filed stations that only happen to compute the
+same height difference are still distinct rows.
+
+When no complete filing exists, `status` is `infeasible`, `assignment` is
+`null` and `runs` is empty.  `locally_impossible_runs` is the sorted list of
+runs that cannot be filed even in isolation (missing pages, wrong station
+order, out-of-window rows or an over-tolerance closure); it is empty on every
+feasible batch.  The list distinguishes a run that first needs field
+investigation from the case where every run is locally fileable but the runs
+compete for the same serial numbers.
+
+Numbers are exact: every reported value is a reduced fraction string or an
+integer string; no `float` is used and no value is rounded.
+
+## Acceptance examples
+
+`fixtures/fieldbook/example.json` fixes A and B at 0 and observes A→B at +4
+and +5 and B→A at -4 and -5.  Both runs walk A→B→A with tolerance 0.  With
+R1 in `[10, 18]` and R2 in `[12, 18]`, R1 must take `a, c` and R2 must take
+`b, d`; both are `confirmed`.  Widening R2 to `[10, 18]` makes both runs
+`ambiguous`, although the closure is 0 either way.  Changing `d` to -6 keeps
+each run solvable alone, but the batch becomes `infeasible` with
+`locally_impossible_runs: []`.  `fixtures/fieldbook/contested.json` is the
+widened-window variant, and `fixtures/fieldbook/missing-page.json` contains a
+run whose stations have no candidate rows at all, so it appears in
+`locally_impossible_runs` while the other runs are locally fileable.

@@ -96,3 +96,13 @@ M=fixtures/staff
 ```
 
 预期：三角样例的最小预留比例为 `1/3`，所有相容高程满足 B=`4/3`、C=`8/3`、X=Y；只要求 B∈[0,1.4] 的包为 `pass`，只要求 X∈[0,4] 的包为 `conditional`，同时要求 X∈[0,4] 与 Y∈[6,10] 的包为 `fail`。预留上限改为 0 的样例批次为 `rejected`，各包标为 `not_evaluated`，测量冲突链不含任何条款。`exact-full-reserve.json` 演示比例恰为 1 时仍可接纳；`floating.json` 演示悬浮分量的绝对条款为 `conditional` 而相对条款直接 `pass`/`fail`；`benchmark-conflict.json` 演示固定基准间冲突不被吸收；`zero-reserve.json` 演示比例为 0 时证明为 `null`。全部计算为精确分数；输入或运行失败退出 2 并保留旧报告，合法的业务拒绝照常写报告。
+
+## 离线手簿归卷
+
+`level-fieldbook` 面向档案员：工地电子水准手簿导出后各条路线混在一起，测站记录仍保留唯一流水号、实测方向、实测时段与后视/前视读数，但路线号已丢失。命令按各路线既有的走站计划与时窗判定整批能否归卷，给出公共见证；只在这条路线的流水号序列于全部完整归卷中一致时才确认其原始行，否则给出反例说明其归属会变。它不改动 `level-network` 的输入、输出与失败语义，全部使用标准库与精确 `Fraction`。字段、候选、闭合与确认判据见[数据契约的手簿归卷章节](docs/contract.md#level-field-book-filing-v1)。
+
+```sh
+.venv/bin/level-fieldbook --source fixtures/fieldbook/example.json --output run/fieldbook.json
+```
+
+预期：A、B 均为 0；R1 时窗 `[10,18]` 只能取 `a,c`，R2 时窗 `[12,18]` 只能取 `b,d`，两条路线均 `confirmed`，闭合差为 0。`fixtures/fieldbook/contested.json` 把 R2 时窗放宽到 `[10,18]`，两条路线都应为 `ambiguous` 并各自带一份交换归属的反例，尽管闭合差始终为 0。`fixtures/fieldbook/missing-page.json` 中的 R3 没有任何候选行，整批 `infeasible`，`locally_impossible_runs` 为 `["R3"]`，其余路线本身可独立成卷。某一批次的每条路线单独看都能排出合格手簿、却争用同一批流水号时，报告同样为 `infeasible`，但 `locally_impossible_runs` 为空，提示档案员这是路线间的争用而非缺页或闭合差问题。合法但不可归卷的批次仍写报告并退出 0；输入错误退出 2 且保留旧报告。
