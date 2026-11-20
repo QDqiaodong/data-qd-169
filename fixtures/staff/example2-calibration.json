@@ -1,0 +1,11 @@
+{
+  "points": [
+    {"id": "X", "elevation": "0"},
+    {"id": "Y", "elevation": "0"}
+  ],
+  "rods": ["S", "T", "U"],
+  "observations": [
+    {"id": "XY", "from": "X", "to": "Y", "delta": "2",
+     "weight": "1", "from_staff": "S", "to_staff": "T"}
+  ]
+}

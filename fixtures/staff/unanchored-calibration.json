@@ -1,0 +1,16 @@
+{
+  "points": [
+    {"id": "A", "elevation": "0"},
+    {"id": "P", "elevation": null},
+    {"id": "Q", "elevation": null}
+  ],
+  "rods": ["S", "T", "V"],
+  "observations": [
+    {"id": "AP", "from": "A", "to": "P", "delta": "5",
+     "weight": "1", "from_staff": "S", "to_staff": "T"},
+    {"id": "PQ", "from": "P", "to": "Q", "delta": "2",
+     "weight": "1", "from_staff": "V", "to_staff": "V"},
+    {"id": "QP", "from": "Q", "to": "P", "delta": "-2",
+     "weight": "1", "from_staff": "V", "to_staff": "V"}
+  ]
+}

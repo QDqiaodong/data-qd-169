@@ -70,3 +70,17 @@ M=fixtures/monitor
 ```
 
 预期：正式高程 B=2、C=2；任一单条观测失效后网络仍可解，目标位移恰为 1 而容差同为 1，等号可接受，两目标均为 `resilient`。桥接样例中全部目标点只经 AB 连回基准 A，移除 AB 后该分量失去基准，此情景对所有目标 `unavailable`，相关结论为 `delivery_at_risk`（不可用优先于超差）。逐情景仅移除一条观测，观测与目标按 ID 稳定排序；失败退出 2 且保留旧报告。
+
+## 水准尺零差校准交接
+
+`level-staff` 在两组互不见面的保管方之间交接同一套水准尺的联合零差校准：校准组只导出尺号及其轮廓二次代价（保留常数项与尺间耦合），不含任何校准点、观测 ID 或行级读数；交付组只用该包与自己的测网联合平差，对全部最优解中取值唯一的查询发布精确值，其余标记 `unresolved`，绝不把未定零差或悬空基准填成零。点与观测 ID 在两组数据中各自独立，尺按实物编号对应；全部使用标准库与精确 `Fraction`。字段、包校验与发布判据见[数据契约的校准交接章节](docs/contract.md#leveling-staff-calibration-handover-v1)。
+
+```sh
+M=fixtures/staff
+.venv/bin/level-staff calibrate --source $M/example1-calibration.json --output run/staff-package1.json
+.venv/bin/level-staff deliver  --source $M/example1-delivery.json   --calibration run/staff-package1.json --output run/staff-report1.json
+.venv/bin/level-staff calibrate --source $M/example2-calibration.json --output run/staff-package2.json
+.venv/bin/level-staff deliver  --source $M/example2-delivery.json   --calibration run/staff-package2.json --output run/staff-report2.json
+```
+
+预期：例 1 的 B 高程为 `49/3`、联合最小代价 `4/3`（交付进程不读取校准原始数据）；例 2 的 B 高程为 `10`，C、D 绝对高程为 `unresolved`，C→D 高差为 `3`、D→C 为 `-3`，联合最小代价 `0`。`unanchored-*` 样例含无固定基准的校准分量，生成全零曲率的合法平坦包，依赖未识别尺方向的交付查询仍为 `unresolved`。读取包时校验版本、尺号、维度与精确数值，并拒绝非对称、负曲率、无有限最小值、最小值为负或对全体尺加同一偏移会改变代价的包；平坦方向本身合法。输入或包无效时退出 2 且保留旧输出；输入列表重排不改变产物。

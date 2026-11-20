@@ -5,3 +5,5 @@
 `fixtures/plan.json` 为水准补测计划的自制合成示例：A 为固定基准 100，B、C 为不同浮动分量中的待交付目标；候选测段 AB=4、BC=1、AC=7，另加不改变计划的低成本 BD=0.5 枝边。最低成本计划为 AB+BC，总成本 5。
 
 `fixtures/resilience.json` 与 `fixtures/resilience-bridge.json` 为单次观测失效韧性审查的自制合成示例：前者以 A 为固定基准 0，B、C 各有两条等权观测，任一单条观测失效后位移恰等于容差 1；后者观测 A-B-C 链与 B-D、D-E 支线，移除 AB 后 B/C/D/E 分量失去基准，演示 `unavailable` 优先于超差。
+
+`fixtures/staff/` 为水准尺零差校准交接的自制合成示例：`example1-*` 是校准场 A=0、P 未知的三条 S→S/S→T/S→U 读数与交付场 A/F 固定、B 未知的联合平差（B=49/3、代价 4/3）；`example2-*` 是固定点之间单条 S→T 读数的校准与含未观测尺 U 的交付网（B=10、C/D 绝对高程不可发布、C-D=3、代价 0）；`unanchored-*` 演示含无固定基准校准分量的合法平坦包。

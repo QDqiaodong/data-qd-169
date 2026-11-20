@@ -1,0 +1,17 @@
+{
+  "points": [
+    {"id": "A", "elevation": "0"},
+    {"id": "F", "elevation": "0"},
+    {"id": "B", "elevation": null}
+  ],
+  "observations": [
+    {"id": "AF", "from": "A", "to": "F", "delta": "4",
+     "weight": "1", "from_staff": "S", "to_staff": "T"},
+    {"id": "AB", "from": "A", "to": "B", "delta": "20",
+     "weight": "1", "from_staff": "S", "to_staff": "U"}
+  ],
+  "targets": [
+    {"id": "height-B", "point": "B"},
+    {"id": "diff-AF", "from": "A", "to": "F"}
+  ]
+}

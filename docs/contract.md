@@ -493,3 +493,142 @@ within tolerance, so E would be `resilient` without the bridge failure; it
 too becomes `delivery_at_risk`, showing that one unavailable scenario decides
 the overall conclusion.
 
+# Leveling staff calibration handover v1
+
+`level-staff` is a separate, offline two-stage command family that lets a
+calibration team hand the joint zero-error calibration of one physical staff
+set to a delivery team without sharing calibration points, observation
+identities, row-level readings or calibration-point elevations.  The two
+teams' point and observation id spaces are independent: equal names are never
+merged.  Staff are matched between stages by physical identifier only, never
+by position or first appearance.  Every value stays an exact `Fraction`; no
+`float` is used in either stage.
+
+## Commands
+
+```text
+level-staff calibrate --source CALIBRATION.json --output PACKAGE.json
+level-staff deliver  --source SURVEY.json --calibration PACKAGE.json --output REPORT.json
+```
+
+All input and output paths must be pairwise distinct; symlink outputs are
+rejected, inputs reject duplicate JSON keys and non-finite numbers under the
+same 8 MB bounded-JSON and atomic-publication rules as the other commands.
+Any invalid input or package exits 2 and leaves an existing output byte
+identical.  Reordering points, observations, staff identifiers or queries
+never changes an artifact.
+
+## Shared observation model
+
+Both inputs keep the existing point and observation contract (at most 60
+points, 1 to 2,000 observations, at least one fixed benchmark, bounded
+decimal values, positive weights) and add two fields per observation:
+`from_staff` and `to_staff`, the physical staff identifiers held at the
+start and end points; the same staff may appear at both ends.  For point
+elevations `h` and staff zero errors `b`, the predicted reading is
+
+```text
+h[to] - h[from] + b[to_staff] - b[from_staff]
+```
+
+Both stages minimize the weighted sum of squared reading residuals.  Fixed
+benchmark elevations never participate in any fit.
+
+## Calibration input and package
+
+The calibration input additionally contains `rods`: 1 to 12 distinct staff
+identifiers, and every observation's staff identifiers must be listed there.
+A listed staff need never appear in a calibration observation, and a
+calibration point component may have no fixed datum; both are legal.
+
+The package contains only staff identifiers and their joint calibration
+information -- never a calibration point, observation id, row reading or
+calibration elevation.  For any fixed staff-error vector `b`, the package
+cost equals the minimum weighted residual sum attainable when the unknown
+calibration heights are free while the benchmarks and `b` stay fixed.  The
+constant term and the coupling between staff are retained; exporting only
+best errors, per-staff errors or independent staff-pair tables is explicitly
+not a substitute.  A package is still produced when the zero errors are not
+individually identifiable.
+
+```json
+{
+  "schema": "level-staff-calibration-v1",
+  "rods": ["S", "T", "U"],
+  "quadratic": [["2/3", "-1/3", "-1/3"],
+                ["-1/3", "2/3", "-1/3"],
+                ["-1/3", "-1/3", "2/3"]],
+  "linear": ["5/3", "-1/3", "-4/3"],
+  "constant": "14/3"
+}
+```
+
+`rods` is sorted and defines the interpretation order of the square matrix
+`quadratic` (Q), the vector `linear` (g) and scalar `constant` (c): the cost
+is `b^T Q b + 2 g^T b + c`.  Every number is a reduced fraction string or an
+integer string; decimals and floats are forbidden.  Gauss-Jordan elimination
+on the calibration normal equations tolerates singular blocks (unanchored
+components): it only needs a particular solution, since null-space
+directions are orthogonal to every normal-equation right-hand side.
+
+## Package acceptance
+
+A package is read only after validating the schema, sorted unique rods,
+matrix/vector dimensions and exact number syntax.  It is rejected when Q is
+asymmetric, when Q has any negative curvature, when the stationarity
+equations have no solution (no finite minimum), when the attained minimum is
+negative, or when adding one common offset to every staff error would change
+the cost (the all-ones vector must be a null direction of Q and orthogonal to
+g).  A flat direction by itself is legal: a zero-curvature package whose
+invariants hold is accepted.
+
+## Delivery input and report
+
+The delivery input additionally contains `targets`: 1 to 20 unique queries,
+either `{id, point}` for an absolute elevation or `{id, from, to}` for a
+directed height difference between distinct existing points.  Every
+delivery-observation staff identifier must come from the package, including
+staff listed but never observed at calibration.
+
+The joint objective is the delivery network's weighted residual sum plus the
+full package cost, minimized jointly over delivery heights and one shared
+staff-error vector.  A query is published only when its value is identical
+across **every** optimum: algebraically, the query coefficient vector must be
+consistent with the joint normal-equation matrix.  An unidentifiable staff,
+point or component never blocks other uniquely determined queries; in
+particular the difference of two unpublishable absolute elevations can still
+be published.  The report is always written for a legal input, even when no
+query can be published.
+
+```json
+{
+  "schema": "level-staff-delivery-v1",
+  "minimum_cost": "4/3",
+  "targets": [
+    {"id": "height-B", "status": "resolved", "value": "49/3"}
+  ]
+}
+```
+
+`targets` is sorted by query id; each row is `{id, status, value}` with
+`status` `resolved` and the exact value, or `unresolved` and `null`.
+`minimum_cost` is the exact joint minimum.
+
+## Acceptance examples
+
+`fixtures/staff/example1-calibration.json` fixes A=0 with P unknown and reads
+A→P as S→S=10, S→T=12, S→U=13.  The delivery file fixes A=F=0 with B unknown,
+reads A→F with S→T=4 and A→B with S→U=20.  The generated package (the
+delivery run never opens the calibration input) gives B=`49/3` and joint
+minimum `4/3`.
+
+`fixtures/staff/example2-calibration.json` lists S, T, U and contains one
+S→T=2 reading between two points fixed at 0.  The delivery network fixes A=0,
+leaves B, C, D unknown and reads A→B S→T=12, A→C S→U=16, C→D U→U=3.  One
+report gives B=`10`, C and D absolute elevations `unresolved`, the C→D
+difference `3` (and D→C `-3`) and joint minimum `0`.
+
+`fixtures/staff/unanchored-calibration.json` adds a point component without
+any benchmark; the resulting flat, all-zero-curvature package still validates,
+and the delivery query that depends on the unidentified staff direction is
+reported `unresolved` rather than pinned to zero.

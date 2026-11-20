@@ -1,0 +1,23 @@
+{
+  "points": [
+    {"id": "A", "elevation": "0"},
+    {"id": "B", "elevation": null},
+    {"id": "C", "elevation": null},
+    {"id": "D", "elevation": null}
+  ],
+  "observations": [
+    {"id": "AB", "from": "A", "to": "B", "delta": "12",
+     "weight": "1", "from_staff": "S", "to_staff": "T"},
+    {"id": "AC", "from": "A", "to": "C", "delta": "16",
+     "weight": "1", "from_staff": "S", "to_staff": "U"},
+    {"id": "CD", "from": "C", "to": "D", "delta": "3",
+     "weight": "1", "from_staff": "U", "to_staff": "U"}
+  ],
+  "targets": [
+    {"id": "height-B", "point": "B"},
+    {"id": "height-C", "point": "C"},
+    {"id": "height-D", "point": "D"},
+    {"id": "diff-CD", "from": "C", "to": "D"},
+    {"id": "diff-DC", "from": "D", "to": "C"}
+  ]
+}
