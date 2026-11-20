@@ -211,3 +211,138 @@ alarms into `(1,open)` and orphans that confirmation. Correcting epoch 2 again
 to revision 3 with AB=1 restores the second episode and the original
 confirmation. Reporting an earlier sequence still shows both episodes and the
 confirmations known at that point.
+
+# Offline field-work plan v1
+
+`level-plan` is a separate, offline planning command for one survey operator.
+It reads the same `points` and `observations` structures as `level-network`
+and validates them under the same identity, decimal, positive-weight and
+count limits, but it never calls `adjust`. Its input may therefore contain
+unknown components without a benchmark: those are exactly what a field plan
+is for. `level-network` input, output, exact adjustment and failure behaviour
+are unchanged.
+
+## Command
+
+```text
+level-plan --source PLAN_INPUT.json --output PLAN.json
+```
+
+Both paths are required and must differ. Input is at most 8 MB, rejects
+duplicate JSON keys and non-finite numbers, and is fully validated before
+publication. A successful run publishes the report atomically exactly like
+the other commands; any failure exits 2, keeps an existing report untouched
+and rejects a symlink output.
+
+## Input
+
+```json
+{
+  "points": [{"id": "A", "elevation": "100"},
+             {"id": "B", "elevation": null},
+             {"id": "C", "elevation": null},
+             {"id": "D", "elevation": null}],
+  "observations": [],
+  "target_points": ["B", "C"],
+  "candidate_segments": [
+    {"id": "AB", "from": "A", "to": "B", "cost": "4"},
+    {"id": "BC", "from": "B", "to": "C", "cost": "1"},
+    {"id": "AC", "from": "A", "to": "C", "cost": "7"},
+    {"id": "BD", "from": "B", "to": "D", "cost": "0.5"}
+  ]
+}
+```
+
+- `points` follows the existing contract: at most 60 unique ids, a bounded
+  decimal elevation string for a fixed benchmark and `null` for an unknown.
+  At least one benchmark is required.
+- `observations` follows the existing contract: at most 2,000 unique ids,
+  known distinct endpoints, bounded decimal deltas and positive weights. The
+  planner may receive an empty list; an absent floating datum is not an
+  error here. Observed delta and weight values are validated but never used
+  to infer connectivity.
+- `target_points` lists at most 10 unique **unknown** point ids. A fixed
+  benchmark cannot be a target.
+- Each `candidate_segment` is a future, not-yet-collected field measurement:
+  `{id, from, to, cost}` only. There are at most 2,000 segments; ids are
+  unique; endpoints are known points and must differ; `cost` is a positive
+  bounded decimal string. Candidate segments carry no delta, weight or
+  result value and are never added to `observations`.
+
+## Algorithm
+
+Current measurement components are built only from observation endpoint
+identities (union-find), never from delta values. A component containing at
+least one fixed point is **anchored**. Every remaining target component must
+be joined to an anchored component by selected candidate segments.
+
+Contracted to components, choosing field segments is a Steiner-tree problem
+with the anchored side contracted to one root and each distinct non-anchored
+target component as a terminal. Non-target floating components are ordinary
+intermediate nodes, so one selected segment may connect two still-floating
+components and serve several targets at once. All candidate pairs between the
+same two components are collapsed to the edge with the smallest exact cost and
+then the smallest id, because every other parallel edge is dominated.
+
+Costs are exact ``Fraction`` values scaled by ``10**6`` into integers; no
+float is used anywhere. The Dreyfus-Wagner dynamic program minimises an exact
+combined integer objective that first minimises total cost and then chooses
+the lexicographically smallest sorted candidate-id list. The id component is
+encoded as a bit mask in which the largest bit belongs to the smallest id, so
+a larger mask is the lexicographically smaller list, and the cost component
+dominates any mask difference because every fractional part has at most six
+digits. The optimum is therefore globally minimal in total cost with the
+required stable tie-break, regardless of input order or of parallel edges
+with identical endpoints and costs.
+
+## Report
+
+```json
+{
+  "schema": "level-plan-report-v1",
+  "pending_collection": true,
+  "note": "Selected candidate segments are pending field collection; they are not observations and no elevations are derived.",
+  "components": [
+    {"points": ["A"], "benchmarks": ["A"], "anchored": true,
+     "target_points": []},
+    {"points": ["B"], "benchmarks": [], "anchored": false,
+     "target_points": ["B"]}
+  ],
+  "feasible": true,
+  "total_cost": "5",
+  "segments": [
+    {"id": "AB", "from": "A", "to": "B", "cost": "4",
+     "status": "pending_collection"},
+    {"id": "BC", "from": "B", "to": "C", "cost": "1",
+     "status": "pending_collection"}
+  ],
+  "targets": [
+    {"point": "B", "benchmark": "A", "already_anchored": false}
+  ],
+  "unreachable_targets": []
+}
+```
+
+`components` reports the current connectivity state independently, with
+points and benchmarks sorted by id and target rows in id order. When no plan
+can reach every target, `feasible` is `false`, `total_cost` is `null`,
+`segments` and `targets` are empty, and `unreachable_targets` lists the
+affected target ids in sorted order. Otherwise `feasible` is `true`,
+`segments` is sorted by id, `total_cost` is the exact reduced sum, and every
+entry in `targets` names a benchmark the target actually reaches with the
+selected segments. A target already in an anchored component needs no work;
+its row keeps its existing benchmark and `already_anchored` is `true`.
+
+The report is a field-work plan, never an adjustment result. Selected
+segments are labelled `pending_collection`, no elevation is derived for them,
+`observations` is not modified and no fixed benchmark is changed. The
+existing `level-network` report for the same input stays byte-identical.
+
+## Acceptance example
+
+`fixtures/plan.json` makes A a fixed benchmark and B, C floating targets in
+separate components. Candidates are AB cost 4, BC cost 1 and AC cost 7; a
+cheap BD branch to a non-target D must not pull the plan. The unique minimum
+is AB + BC at total 5: BC simultaneously anchors both B and C, so separately
+buying a route for each target is never optimal. The report lists the two
+pending segments in id order and links both targets to A.

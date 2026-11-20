@@ -49,3 +49,13 @@ M=fixtures/monitor
 ```
 
 预期：sequence 1 为 init，之后每个成功批次加 1；合并批次后 B 仅剩 `(1,open)`，第二段确认显示 `orphaned`；恢复批次后 `(1,2)` 与 `(3,open)` 重新出现，`(3,open)` 的确认恢复为 `valid`，operator 仍为首次确认者；`--as-of 4` 始终显示两段及当时的未确认状态。撤回用 `observations: null`，重试同 `request_id` 且规范内容相同返回原 sequence，内容不同退出 2。
+
+## 离线补测计划
+
+`level-plan` 面向外业测量人员：现有观测所在分量缺少固定基准时，`level-network` 会拒绝平差，而 `level-plan` 从候补测段中给出可直接执行的最小成本补测集合。它只读取现有的 `points`/`observations` 结构来判定当前连通分量，绝不调用 `adjust`，也不把候选段伪装成观测或推算高程。字段、连通判定、精确成本与稳定平局规则见[数据契约的补测计划章节](docs/contract.md#offline-field-work-plan-v1)。
+
+```sh
+.venv/bin/level-plan --source fixtures/plan.json --output run/plan.json
+```
+
+预期：A 为固定基准，B、C 为不同浮动分量中的目标；候选 AB=4、BC=1、AC=7，另有不改变计划的 BD=0.5。最低成本计划为 AB+BC，`total_cost` 为 `5`，B 与 C 均经 BC 共享接入锚定侧，各目标报告所连基准 A；`segments` 均标记 `pending_collection`（待采集）。若某目标无法连到任何基准，命令仍成功退出并写出 `feasible: false` 与排序后的 `unreachable_targets`；输入无效时退出 2 且不覆盖旧报告。

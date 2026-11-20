@@ -10,5 +10,6 @@ dependencies = []
 [project.scripts]
 level-network = "level_network.cli:main"
 level-monitor = "level_network.monitor_cli:main"
+level-plan = "level_network.plan_cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
