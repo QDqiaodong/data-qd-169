@@ -7,3 +7,5 @@
 `fixtures/resilience.json` 与 `fixtures/resilience-bridge.json` 为单次观测失效韧性审查的自制合成示例：前者以 A 为固定基准 0，B、C 各有两条等权观测，任一单条观测失效后位移恰等于容差 1；后者观测 A-B-C 链与 B-D、D-E 支线，移除 AB 后 B/C/D/E 分量失去基准，演示 `unavailable` 优先于超差。
 
 `fixtures/staff/` 为水准尺零差校准交接的自制合成示例：`example1-*` 是校准场 A=0、P 未知的三条 S→S/S→T/S→U 读数与交付场 A/F 固定、B 未知的联合平差（B=49/3、代价 4/3）；`example2-*` 是固定点之间单条 S→T 读数的校准与含未观测尺 U 的交付网（B=10、C/D 绝对高程不可发布、C-D=3、代价 0）；`unanchored-*` 演示含无固定基准校准分量的合法平坦包。
+
+`fixtures/accept/` 为竣工移交验收的自制合成示例：`triangle.json` 是契约验收样例（A 固定为 0，AB/BC/AC 读数 1/1/3、常规误差 0、预留 1，AX 读数 5、常规误差 5，XY 精确；最小预留比例 1/3，B=4/3、C=8/3、X=Y，三个工作包分别为 pass/conditional/fail）；`triangle-rejected.json` 把前三条观测的预留改为 0，批次在比例 1 下仍冲突而被拒绝；`exact-full-reserve.json` 的最小比例恰为 1；`floating.json` 含悬浮分量，绝对条款与相对条款结论不同；`benchmark-conflict.json` 演示两个固定基准之间的冲突不被吸收；`zero-reserve.json` 在比例 0 下接纳、证明为 null。

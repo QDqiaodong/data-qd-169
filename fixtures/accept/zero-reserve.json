@@ -1,0 +1,20 @@
+{
+  "points": [
+    {"id": "A", "elevation": "0"},
+    {"id": "B", "elevation": null}
+  ],
+  "observations": [
+    {"id": "AB", "from": "A", "to": "B", "delta": "2", "nominal": "1", "reserve": "1"}
+  ],
+  "lots": [
+    {"id": "lot-pass", "clauses": [
+      {"id": "c1", "point": "B", "min": "0", "max": "4"}
+    ]},
+    {"id": "lot-conditional", "clauses": [
+      {"id": "c1", "point": "B", "min": "1.5", "max": "4"}
+    ]},
+    {"id": "lot-fail", "clauses": [
+      {"id": "c1", "point": "B", "min": "4", "max": "10"}
+    ]}
+  ]
+}

@@ -632,3 +632,146 @@ difference `3` (and D→C `-3`) and joint minimum `0`.
 any benchmark; the resulting flat, all-zero-curvature package still validates,
 and the delivery query that depends on the unidentified staff direction is
 reported `unresolved` rather than pinned to zero.
+
+# Level acceptance review v1
+
+`level-accept` is a separate, offline acceptance command for one field
+crew.  It never calls `adjust`: a least-squares best fit can hide readings
+that cannot hold simultaneously, and it can satisfy an acceptance line
+while another, equally compatible elevation set fails the whole work lot.
+The command first decides whether one shared reserve fraction makes the
+whole reading batch jointly feasible, then decides which work lots can be
+signed off against *every* compatible elevation set.  `level-network`
+input, output, exact adjustment and failure behaviour are unchanged.
+
+## Command
+
+```text
+level-accept --source INPUT.json --output REPORT.json
+```
+
+Both paths are required and must differ.  Input is at most 8 MB, rejects
+duplicate JSON keys and non-finite numbers, and is fully validated before
+publication.  A business rejection (an infeasible batch) still publishes
+its report with exit code 0; any invalid input or runtime failure exits 2,
+keeps an existing report untouched and rejects a symlink output.  Repeated
+runs on the same input produce byte-identical reports, and reordering any
+input array (points, observations, lots, clauses) never changes the
+report.
+
+## Input
+
+- `points`: the existing contract -- at most 60 unique ids, a bounded
+  decimal elevation string for a fixed benchmark and `null` for an
+  unknown, at least one benchmark.  Floating components and isolated
+  points are allowed: some acceptance questions are purely relative and
+  need no manufactured datum.
+- `observations`: 1 to 2,000 rows `{id, from, to, delta, nominal,
+  reserve}`.  Ids are unique, endpoints exist and differ.  `delta` is the
+  directed reading, `nominal` the routine tolerance and `reserve` a
+  pre-authorized extra tolerance cap; the last two are non-negative
+  bounded decimal strings.  These bounds are hard error limits; the input
+  carries no statistical weights.
+- `lots`: 1 to 20 independent work packages `{id, clauses}` with unique
+  ids.  Each lot has 1 to 20 clauses with ids unique within the lot.  An
+  absolute clause is `{id, point, min, max}`; a directed difference clause
+  is `{id, from, to, min, max}` with distinct existing endpoints.  `min`
+  and `max` are bounded decimal strings with `min <= max`; bounds are
+  inclusive.  A lot requires all of its clauses to hold under **one**
+  elevation assignment; lots never constrain each other.
+
+## Survey batch acceptance
+
+For one shared reserve fraction `r` in `[0, 1]`, every observation
+requires the true directed difference within
+`[delta - nominal - r*reserve, delta + nominal + r*reserve]`, and every
+fixed elevation stays fixed.  The command computes the exact minimal `r`
+that makes the whole batch feasible -- one ratio for the entire batch,
+never per-row choices, never dropped rows, never an approximate search.
+Feasibility is a negative-cycle question on the constraint graph
+(observation edges plus benchmark edges to one shared zero reference), and
+the minimal ratio is the maximum cycle ratio `max(-A/B)` over simple
+cycles, clamped below by 0; it is found by exact rational root-chasing
+over Bellman-Ford negative cycles, so the result is an exact `Fraction`.
+If the batch is infeasible even at `r = 1` the survey is `rejected` (a
+report is still published) and every lot is `not_evaluated`.  Otherwise
+the acceptance ratio stays at the computed minimum -- it is never widened
+to 1 and never relaxed to please a clause -- and only elevations
+compatible at that ratio are used below.
+
+## Lot sign-off
+
+Each lot starts from the same acceptance result:
+
+- `pass`: every compatible elevation assignment satisfies every clause of
+  the lot (checked as exact shortest-path extrema over the compatible
+  polyhedron, never as one fitted profile);
+- `fail`: no single assignment satisfies all clauses jointly -- a
+  contradiction cycle exists through measurements, benchmarks and this
+  lot's clauses (per-clause individual feasibility is not a substitute);
+- `conditional`: otherwise.  Two complete compatible profiles are
+  published for field verification: one satisfying every clause, one
+  violating at least one.
+
+Compatible elevations need not be unique; freely translatable points are
+never pinned to a fixed value.
+
+## Report
+
+```json
+{
+  "schema": "level-accept-v1",
+  "survey": {"status": "accepted", "reserve_fraction": "1/3",
+             "profile": {"A": "0", "B": "4/3"},
+             "proof": [{"kind": "observation", "id": "AC",
+                        "side": "lower"}]},
+  "lots": [{"id": "lot-1", "status": "conditional",
+            "satisfying_profile": {"A": "0", "B": "4/3"},
+            "violating_profile": {"A": "0", "B": "2"},
+            "proof": null}]
+}
+```
+
+- `survey.reserve_fraction` is the minimal ratio as a reduced fraction or
+  integer string; `survey.profile` is one compatible elevation assignment
+  mapping every point id to the same kind of numeric string.  A rejected
+  survey carries `null` for both.  `survey.proof` is `null` when the
+  ratio is 0, otherwise one contradiction chain.
+- `lots` is sorted by lot id.  `conditional` rows carry both profiles and
+  a `null` proof; `fail` rows carry a contradiction chain and `null`
+  profiles; `pass` and `not_evaluated` rows carry `null` for all three.
+
+## Contradiction chains
+
+A chain is a list of `{kind, id, side}` items a reviewer can re-add from
+the original input.  `kind` is `observation`, `benchmark` or `clause`
+(referencing an observation id, a fixed point id, or a clause id of the
+current lot); `side` is `upper` or `lower`.  An upper item reads "the
+directed difference from its start to its end is at most the upper
+bound"; a lower item reads "the reverse difference is at most the negated
+lower bound".  Absolute clauses and fixed benchmarks start from one
+shared zero-elevation reference (not an input point id); a benchmark's
+two bounds both equal its elevation.  The items chain head-to-tail and
+the last returns to the first.  The chain's bounds, summed from the
+original input at ratio 1 for a rejected survey or at the acceptance
+ratio for a failed lot, are strictly negative; for a positive minimal
+acceptance ratio the sum is exactly zero at that ratio and strictly
+negative at any smaller one.  Chains are not required to be shortest;
+any reproducible chain is valid.  Lot clauses never appear in a survey
+conflict chain.
+
+## Acceptance examples
+
+`fixtures/accept/triangle.json` fixes A=0 and reads AB=1, BC=1, AC=3 with
+zero nominal and unit reserve, plus AX=5 with nominal 5 and XY=0 exact.
+The minimal ratio is `1/3`; every compatible assignment has B=`4/3`,
+C=`8/3` and X=Y.  The lot requiring only B in [0, 1.4] is `pass`; the lot
+requiring only X in [0, 4] is `conditional`; the lot requiring both X in
+[0, 4] and Y in [6, 10] is `fail`.  `fixtures/accept/triangle-rejected.json`
+zeroes the first three reserves, making the batch `rejected` at ratio 1.
+`fixtures/accept/exact-full-reserve.json` is accepted at ratio exactly 1,
+`fixtures/accept/floating.json` shows a floating component whose absolute
+clause is `conditional` while its relative clauses pass or fail outright,
+`fixtures/accept/benchmark-conflict.json` shows that a conflict between
+fixed benchmarks is never absorbed, and `fixtures/accept/zero-reserve.json`
+accepts at ratio 0 with a null proof.

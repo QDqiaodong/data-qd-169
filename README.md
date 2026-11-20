@@ -84,3 +84,15 @@ M=fixtures/staff
 ```
 
 预期：例 1 的 B 高程为 `49/3`、联合最小代价 `4/3`（交付进程不读取校准原始数据）；例 2 的 B 高程为 `10`，C、D 绝对高程为 `unresolved`，C→D 高差为 `3`、D→C 为 `-3`，联合最小代价 `0`。`unanchored-*` 样例含无固定基准的校准分量，生成全零曲率的合法平坦包，依赖未识别尺方向的交付查询仍为 `unresolved`。读取包时校验版本、尺号、维度与精确数值，并拒绝非对称、负曲率、无有限最小值、最小值为负或对全体尺加同一偏移会改变代价的包；平坦方向本身合法。输入或包无效时退出 2 且保留旧输出；输入列表重排不改变产物。
+
+## 竣工移交验收
+
+`level-accept` 面向竣工移交：测量组先证明整批水准读数在同一预留比例下能够同时成立，验收组再判定每个工作包是否可签发。它不调用 `adjust`：最佳拟合值可能掩盖无法同时满足的读数，也可能在某条验收线上合格，却存在另一组同样相容的高程使整包不合格。字段、精确比例与矛盾链格式见[数据契约的验收章节](docs/contract.md#level-acceptance-review-v1)。
+
+```sh
+.venv/bin/level-accept --source fixtures/accept/triangle.json --output run/accept-triangle.json
+.venv/bin/level-accept --source fixtures/accept/triangle-rejected.json --output run/accept-rejected.json
+.venv/bin/level-accept --source fixtures/accept/floating.json --output run/accept-floating.json
+```
+
+预期：三角样例的最小预留比例为 `1/3`，所有相容高程满足 B=`4/3`、C=`8/3`、X=Y；只要求 B∈[0,1.4] 的包为 `pass`，只要求 X∈[0,4] 的包为 `conditional`，同时要求 X∈[0,4] 与 Y∈[6,10] 的包为 `fail`。预留上限改为 0 的样例批次为 `rejected`，各包标为 `not_evaluated`，测量冲突链不含任何条款。`exact-full-reserve.json` 演示比例恰为 1 时仍可接纳；`floating.json` 演示悬浮分量的绝对条款为 `conditional` 而相对条款直接 `pass`/`fail`；`benchmark-conflict.json` 演示固定基准间冲突不被吸收；`zero-reserve.json` 演示比例为 0 时证明为 `null`。全部计算为精确分数；输入或运行失败退出 2 并保留旧报告，合法的业务拒绝照常写报告。
